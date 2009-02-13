@@ -19,7 +19,7 @@
 "   - Questions ? e-mail please ;)
 "   - Using it ? please, leave a word ;)
 "   - 2009-02-13. Added experimental support for tags. It seems to work
-"     well with wordress.com hosted blogs. Fernando Tricas
+"     well with wordpress.com hosted blogs. Fernando Tricas
 
 
 if !has('ruby')
