@@ -6,22 +6,26 @@
 "   - please, add this code to your .vimrc file:
 "
 "       if !exists('*Wordpress_vim')
-"         runtime vimblog.vim
+"         runtime vimlog.vim
 "       endif
 "
 "   - change your blog login/password info on the get_personal_data
 "     function bellow. 
 "   - make sure you have xmlrpc.php file in your / blog dir. If not, 
 "     change the @xml variable to find it.
-"   - testing: open vim, ando do 
+"   - testing: open vim, and do 
 "       :Blog rp 
 "     to get your recent 10 posts.
 "   - Questions ? e-mail please ;)
 "   - Using it ? please, leave a word ;)
+"   - 2009-02-13. Added experimental support for tags. It seems to work
+"     well with wordress.com hosted blogs. Fernando Tricas
 
 
 if !has('ruby')
-    s:ErrMsg( "Error: Required vim compiled with +ruby" )
+    echo "---------------------------------------"
+    echo "Error: Required vim compiled with +ruby"
+    echo "---------------------------------------"
     finish
 endif
 
@@ -29,7 +33,7 @@ endif
 " Language:     wordpress_vim
 " Maintainer:   pedro mg <pedro.mota [at] gmail.com>
 " Version:      1.1
-" Last Change:  2008 Apr 04
+" Last Change:  2008 Apr 10
 " Remark:       Simple functions for vim blogging bundle in ruby.
 " Remark:       Please, if you fine tune this code, send it back  
 " Remark:       for version upgrade ;)
@@ -48,7 +52,7 @@ endfunction
 function! Post_syn_hl()    " {{{3
   :syntax clear
   :runtime! syntax/html.vim   " content syntax is html hl, except for headers
-  :syntax keyword wpType Post Title Date Author Link Permalink Allow Comments Allow Pings Categs  
+  :syntax keyword wpType Post Title Date Author Link Permalink Allow Comments Allow Pings Categs Tags 
   :syntax region wpPostId start=/\[/ end=/\]/ contained
   :syntax match wpFields /: .*/hs=s+2 contains=wpPostId 
   :highlight wpType ctermfg=Green guifg=LightGreen gui=bold
@@ -61,13 +65,11 @@ endfunction
 " Language:     vim script 
 " Interface:    ruby
 " Maintainer:   pedro mg <pedro.mota [at] gmail.com>
-" Version:      1.2
-" Last Change:  2008 Jun 14
+" Version:      1.0
+" Last Change:  2007 Mar 02
 " Remark:       script function for vim blogging bundle in ruby.
 " Remark:       Please, if you fine tune this code, send it back  
 " Remark:       for version upgrade ;)
-" Remark:       V1.2 - commands added:
-" Remark:              - Blog link ADDRESS,TITLE,STRING
 
 :command -nargs=* Blog call Wordpress_vim(<f-args>)
 
@@ -117,8 +119,9 @@ ruby <<EOF
         post_content['mt_allow_comments'] = (VIM::Buffer.current[3]).gsub(/Comments *:/, '')
         post_content['mt_allow_pings'] = (VIM::Buffer.current[4]).gsub(/Pings *:/, '')
         post_content['categories'] = (VIM::Buffer.current[5]).gsub(/Categs *:/, '').split
+        post_content['mt_keywords'] = (VIM::Buffer.current[6]).gsub(/Tags *:/, '').split
         body = [] # from line 8 to the end, grab the post body content
-        8.upto(VIM::Buffer.current.count) { |line| body << VIM::Buffer.current[line] }
+        9.upto(VIM::Buffer.current.count) { |line| body << VIM::Buffer.current[line] }
 	post_content['description'] = body.join("\r")
       else
         post_content['post_id'] = ((VIM::Buffer.current[1]).gsub(/Post.*\[/, '')).strip.chop
@@ -127,8 +130,9 @@ ruby <<EOF
         post_content['mt_allow_comments'] = (VIM::Buffer.current[7]).gsub(/Comments *:/, '')
         post_content['mt_allow_pings'] = (VIM::Buffer.current[8]).gsub(/Pings *:/, '')
         post_content['categories'] = (VIM::Buffer.current[9]).gsub(/Categs *:/, '').split 
+        post_content['mt_keywords'] = (VIM::Buffer.current[10]).gsub(/Tags *:/, '').split 
 	body = [] # from line 11 to the end, grab the post body content
-        11.upto(VIM::Buffer.current.count) { |line| body << VIM::Buffer.current[line] }
+        12.upto(VIM::Buffer.current.count) { |line| body << VIM::Buffer.current[line] }
 	post_content['description'] = body.join("\r")
       end
       post_content['mt_exceprt'] = ''
@@ -176,6 +180,7 @@ ruby <<EOF
       v.append(v.count-1, "Comments : 1")
       v.append(v.count-1, "Pings    : 1")
       v.append(v.count-1, "Categs   : ")
+      v.append(v.count-1, "Tags     : ")
       v.append(v.count-1, " ")
       v.append(v.count-1, " ")
       v.append(v.count-1, "<type from here...> ")
@@ -235,6 +240,7 @@ ruby <<EOF
       v.append(v.count-1, "Comments : #{resp['post_allow_comments']}")
       v.append(v.count-1, "Pings    : #{resp['post_allow_pings']}")
       v.append(v.count-1, "Categs   : #{resp['post_categories']}")
+      v.append(v.count-1, "Tags     : #{resp['post_keywords']}")
       v.append(v.count-1, " ")
       v.append(v.count-1, " ")
       resp['post_body'].each_line { |l| v.append(v.count-1, l.strip)}
@@ -247,21 +253,6 @@ ruby <<EOF
       VIM::evaluate("a:0").to_i > 0 ? ((id = VIM::evaluate("a:1")) ? id : id = nil) : id = nil
       resp = blog_api("del", id)
       resp ? VIM.command("echo \"Blog post ##{id} successfully deleted\"") : VIM.command("echo \"Deletion problem for post id ##{id}\"")
-    end
-
-    #######
-    # insert a link. Is it interesting to implement these options ?
-    # ** http://address.com
-    # ** title (hint)
-    # ** string
-    #
-    def blog_link
-      v = VIM::Buffer.current
-      link = {:link => '', :string => '', :title => ''}
-      VIM::evaluate("a:0").to_i > 0 ? ((id = VIM::evaluate("a:1")) ? id : id = nil) : id = nil
-      v.append(v.count-1, "  a:0 --> #{VIM::evaluate("a:0")}  ")
-      v.append(v.count-1, "  a:1 --> #{VIM::evaluate("a:1")}  ")
-      v.append(v.count-1, "<a href=\"#{link[:link]}\" title=\"#{link[:title]}\">#{link[:string]}</a>")
     end
 
     #######
@@ -287,6 +278,7 @@ ruby <<EOF
             'post_allow_pings' => resp['mt_allow_pings'],
             'post_ping_status' => resp['mt_ping_status'],
             'post_categories' => resp['categories'].join(' '),
+            'post_keywords' => resp['mt_keywords'],
             'post_body' => resp['description']
           }
 
@@ -376,8 +368,6 @@ EOF
     :echo "  - draft    => save edited/new post as draft"
     :echo "  - gc       => get the list of categories"
     :echo "  - del id   => delete post with identification id"
-    :echo "  --- syntax helpers:"
-    :echo "  - link ADDRESS,TITLE,STRING   => insert link <a href='ADDRESS' title='TITLE'>STRING</a> link"
   endtry
 endfunction 
 " }}}1
